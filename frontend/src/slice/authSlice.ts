@@ -1,208 +1,261 @@
 import {
-    createSlice,
-    createAsyncThunk,
-  } from "@reduxjs/toolkit";
-  
+  createSlice,
+  createAsyncThunk,
+} from "@reduxjs/toolkit";
+
 import type {
-    PayloadAction,
-  } from "@reduxjs/toolkit";
+  PayloadAction,
+} from "@reduxjs/toolkit";
 
 import axiosClient from "../utils/axiosClient";
 import { getErrorMessage } from "../utils/errorMessage";
-  
-  
-  // USER TYPE
-  interface User {
-    id: string;
-    email: string;
-    userName?: string | null;
-    photoURL?: string | null;
-    phoneNumber?: string | null;
-  }
-  
-  
-  // STATE TYPE
-  interface AuthState {
-    user: User | null;
-    isAuthenticated: boolean;
-    loading: boolean;
-    error: string | null;
-  }
-  
-  
-  // INITIAL STATE
-  const initialState: AuthState = {
-    user: null,
-    isAuthenticated: false,
-    loading: true,   // true so we block routes until checkAuth resolves
-    error: null,
-  };
-  
-  
-  // CHECK AUTH
-  export const checkAuth = createAsyncThunk(
-    "auth/checkAuth",
-  
-    async (_, thunkAPI) => {
-  
-      try {
-  
-        const response = await axiosClient.get(
-          "/auth/checkAuth",
-          {
-            withCredentials: true,
-          }
-        );
-  
-        return response.data.user;
-  
-      } catch (err: any) {
-  
-        return thunkAPI.rejectWithValue(
-          getErrorMessage(err)
-        );
-  
-      }
-  
-    }
-  );
 
 
-  // LOGOUT
-  export const logoutAsync = createAsyncThunk(
-    "auth/logout",
+// ======================
+// USER TYPE
+// ======================
+interface User {
+  id: string;
+  email: string;
+  userName?: string | null;
+  photoURL?: string | null;
+  phoneNumber?: string | null;
+}
 
-    async (_, thunkAPI) => {
 
-      try {
+// ======================
+// CHECK AUTH RESPONSE
+// ======================
+interface CheckAuthResponse {
+  success: boolean;
+  isAuthenticated: boolean;
+  user: User | null;
+}
 
-        await axiosClient.post(
-          "/auth/logout",
-          {},
-          {
-            withCredentials: true,
-          }
-        );
 
-      } catch (err: any) {
+// ======================
+// STATE TYPE
+// ======================
+interface AuthState {
+  user: User | null;
+  isAuthenticated: boolean;
+  loading: boolean;
+  error: string | null;
+}
 
-        return thunkAPI.rejectWithValue(
-          getErrorMessage(
-            err,
-            "Could not sign out. Please try again."
-          )
-        );
 
-      }
+// ======================
+// INITIAL STATE
+// ======================
+const initialState: AuthState = {
+  user: null,
+  isAuthenticated: false,
+  loading: true,
+  error: null,
+};
+
+
+// ======================
+// CHECK AUTH
+// ======================
+export const checkAuth = createAsyncThunk<
+  CheckAuthResponse,
+  void,
+  { rejectValue: string }
+>(
+  "auth/checkAuth",
+
+  async (_, thunkAPI) => {
+
+    try {
+
+      const response = await axiosClient.get(
+        "/auth/checkAuth",
+        {
+          withCredentials: true,
+        }
+      );
+
+      return response.data;
+
+    } catch (err: any) {
+
+      return thunkAPI.rejectWithValue(
+        getErrorMessage(err)
+      );
 
     }
-  );
 
-  
-  // AUTH SLICE
-  const authSlice = createSlice({
-    name: "auth",
-  
-    initialState,
-  
-    reducers: {
-  
-      // LOGIN SUCCESS
-      setUser: (
-        state,
-        action: PayloadAction<User>
-      ) => {
-  
-        state.user = action.payload;
-  
-        state.isAuthenticated = true;
-  
-      },
-  
-      // LOGOUT (local reset)
-      logoutUser: (state) => {
-  
+  }
+);
+
+
+// ======================
+// LOGOUT
+// ======================
+export const logoutAsync = createAsyncThunk<
+  void,
+  void,
+  { rejectValue: string }
+>(
+  "auth/logout",
+
+  async (_, thunkAPI) => {
+
+    try {
+
+      await axiosClient.post(
+        "/auth/logout",
+        {},
+        {
+          withCredentials: true,
+        }
+      );
+
+    } catch (err: any) {
+
+      return thunkAPI.rejectWithValue(
+        getErrorMessage(
+          err,
+          "Could not sign out. Please try again."
+        )
+      );
+
+    }
+
+  }
+);
+
+
+// ======================
+// AUTH SLICE
+// ======================
+const authSlice = createSlice({
+  name: "auth",
+
+  initialState,
+
+  reducers: {
+
+    // SET USER AFTER LOGIN
+    setUser: (
+      state,
+      action: PayloadAction<User>
+    ) => {
+
+      state.user = action.payload;
+
+      state.isAuthenticated = true;
+
+      state.error = null;
+
+    },
+
+    // LOCAL LOGOUT
+    logoutUser: (state) => {
+
+      state.user = null;
+
+      state.isAuthenticated = false;
+
+      state.error = null;
+
+    },
+
+  },
+
+  extraReducers: (builder) => {
+
+    builder
+
+      // ======================
+      // CHECK AUTH
+      // ======================
+
+      // PENDING
+      .addCase(checkAuth.pending, (state) => {
+
+        state.loading = true;
+
+      })
+
+      // SUCCESS
+      .addCase(checkAuth.fulfilled, (state, action) => {
+
+        state.loading = false;
+
+        state.user = action.payload.user;
+
+        state.isAuthenticated =
+          action.payload.isAuthenticated;
+
+        state.error = null;
+
+      })
+
+      // FAILED
+      .addCase(checkAuth.rejected, (state) => {
+
+        state.loading = false;
+
         state.user = null;
-  
+
         state.isAuthenticated = false;
-  
-      },
-  
-    },
-  
-    extraReducers: (builder) => {
-  
-      builder
-  
-        // PENDING
-        .addCase(checkAuth.pending, (state) => {
-  
-          state.loading = true;
-  
-        })
-  
-        // SUCCESS
-        .addCase(checkAuth.fulfilled, (state, action) => {
-  
-          state.loading = false;
-  
-          state.user = action.payload;
-  
-          state.isAuthenticated = true;
-  
-        })
-  
-        // FAILED
-        .addCase(checkAuth.rejected, (state, action) => {
-  
-          state.loading = false;
-  
-          state.user = null;
-  
-          state.isAuthenticated = false;
-  
-          state.error = action.payload as string;
-  
-        })
 
-        // LOGOUT — pending
-        .addCase(logoutAsync.pending, (state) => {
+        state.error = null;
 
-          state.loading = true;
+      })
 
-        })
 
-        // LOGOUT — fulfilled: clear state
-        .addCase(logoutAsync.fulfilled, (state) => {
+      // ======================
+      // LOGOUT
+      // ======================
 
-          state.loading = false;
+      // PENDING
+      .addCase(logoutAsync.pending, (state) => {
 
-          state.user = null;
+        state.loading = true;
 
-          state.isAuthenticated = false;
+      })
 
-        })
+      // SUCCESS
+      .addCase(logoutAsync.fulfilled, (state) => {
 
-        // LOGOUT — rejected: still clear state
-        .addCase(logoutAsync.rejected, (state) => {
+        state.loading = false;
 
-          state.loading = false;
+        state.user = null;
 
-          state.user = null;
+        state.isAuthenticated = false;
 
-          state.isAuthenticated = false;
+        state.error = null;
 
-          state.error = null;
+      })
 
-        });
-  
-    },
-  
-  });
-  
-  export const {
-    setUser,
-    logoutUser,
-  } = authSlice.actions;
-  
-  export default authSlice.reducer;
+      // FAILED
+      .addCase(logoutAsync.rejected, (state, action) => {
+
+        state.loading = false;
+
+        state.user = null;
+
+        state.isAuthenticated = false;
+
+        state.error =
+          action.payload || null;
+
+      });
+
+  },
+
+});
+
+
+// ======================
+// EXPORTS
+// ======================
+export const {
+  setUser,
+  logoutUser,
+} = authSlice.actions;
+
+export default authSlice.reducer;

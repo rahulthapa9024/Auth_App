@@ -46,4 +46,49 @@ const authMiddleware = async (
   }
 };
 
+export const optionalAuthMiddleware = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const token = req.cookies?.token;
+
+    if (!token) {
+      return next();
+    }
+
+    const isBlacklisted =
+      await isTokenBlacklisted(token);
+
+    if (isBlacklisted) {
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+      });
+
+      return next();
+    }
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET as string
+    );
+
+    req.user = decoded;
+    req.token = token;
+
+    next();
+  } catch (err) {
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    });
+
+    next();
+  }
+};
+
 export default authMiddleware;

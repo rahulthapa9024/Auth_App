@@ -12,25 +12,36 @@ const CheckAuth = async (
 
   try {
 
-    // req.user is already decoded & verified by authMiddleware
+    // USER NOT LOGGED IN
+    if (!req.user) {
+      return res.status(200).json({
+        success: true,
+        isAuthenticated: false,
+        user: null,
+      });
+    }
+
     const { id } = req.user;
 
-    // FIND USER IN DB
+    // FIND USER
     const user = await prisma.user.findUnique({
       where: { id },
     });
 
+    // USER NOT FOUND
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
+      return res.status(200).json({
+        success: true,
+        isAuthenticated: false,
+        user: null,
       });
     }
 
+    // AUTHENTICATED
     return res.status(200).json({
       success: true,
-      user,
       isAuthenticated: true,
+      user,
     });
 
   } catch (err) {

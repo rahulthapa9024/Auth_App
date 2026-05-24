@@ -4,7 +4,9 @@ const userRouter = Router();
 
 
 // MIDDLEWARES
-import authMiddleware from "../middlewares/authMiddleware";
+import authMiddleware, {
+  optionalAuthMiddleware,
+} from "../middlewares/authMiddleware";
 
 import guestMiddleware from "../middlewares/guestMiddleware";
 
@@ -48,7 +50,7 @@ userRouter.post(
 // CHECK AUTH
 userRouter.get(
   "/checkAuth",
-  authMiddleware,
+  optionalAuthMiddleware,
   CheckAuth
 );
 
