@@ -1,6 +1,5 @@
 import { FaGithub, FaLinkedin } from "react-icons/fa";
-import { IoMdMail } from "react-icons/io";
-
+import { CiGlobe } from "react-icons/ci";
 export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] text-slate-100 px-4">
@@ -40,11 +39,12 @@ export default function Home() {
 
         {/* Email */}
         <a 
-          href="mailto:rahulthapa9024@gmail.com" 
+          href="https://portfolio-ten-xi-mee38qjyjs.vercel.app/" 
+          target="_blank"
           className="flex items-center gap-3 px-5 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-all group"
         >
-          <IoMdMail className="w-5 h-5 text-slate-400 group-hover:text-emerald-400 transition-colors" />
-          <span className="font-medium">Email</span>
+          <CiGlobe className="w-5 h-5 text-slate-400 group-hover:text-emerald-400 transition-colors" />
+          <span className="font-medium">Portfolio</span>
         </a>
 
       </div>
