@@ -831,6 +831,234 @@ REDIS_PORT=
 
 It must be a valid number from `0` to `65535`.
 
+## Running Locally with Docker
+
+Docker lets you spin up the entire stack — backend and frontend — with a single command, without installing Node.js, configuring Redis, or setting up a database manually on your machine.
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+- A Redis instance reachable from your machine (e.g. Redis Cloud, Upstash, or a local Redis container).
+- A PostgreSQL database reachable from your machine (e.g. Supabase, Neon, or a local Postgres container).
+- `backend/.env` and `frontend/.env` files filled in (see env sections below).
+
+### Docker Files Overview
+
+#### `backend/dockerfile`
+
+```dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
+```
+
+- Based on the official **Node 20 Alpine** image (small footprint).
+- Sets `/app` as the working directory inside the container.
+- Copies `package.json` and `package-lock.json` first so Docker can cache the `npm install` layer — rebuilds are faster when only source files change.
+- Copies the rest of the source code.
+- Exposes port `3000` (the backend dev server port).
+- Starts the backend with `npm run dev`.
+
+#### `frontend/dockerfile`
+
+```dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+EXPOSE 5173
+
+CMD ["npm", "run", "dev"]
+```
+
+- Same structure as the backend Dockerfile.
+- Exposes port `5173` (the Vite dev server port).
+- The `docker-compose.yml` overrides the CMD to pass `--host` so Vite binds to `0.0.0.0` and is reachable from outside the container.
+
+#### `backend/.dockerignore` and `frontend/.dockerignore`
+
+```txt
+node_modules
+.env
+```
+
+- **`node_modules`** is excluded so the host's `node_modules` folder is never copied into the image. Dependencies are installed fresh inside the container.
+- **`.env`** is excluded from the image for security. Environment variables are injected at runtime via `docker-compose.yml` using the `env_file` directive.
+
+#### `docker-compose.yml`
+
+```yaml
+services:
+  backend:
+    build: ./backend
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+    env_file:
+      - ./backend/.env
+
+    command: npm run dev
+
+  frontend:
+    build: ./frontend
+
+    ports:
+      - "5173:5173"
+
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+    env_file:
+      - ./frontend/.env
+
+    command: npm run dev -- --host
+```
+
+Key points:
+
+| Setting | Purpose |
+|---|---|
+| `build: ./backend` | Builds the image from `backend/dockerfile` |
+| `ports: "3000:3000"` | Maps host port 3000 to container port 3000 |
+| `volumes: ./backend:/app` | Mounts the local source folder into the container so live edits reflect immediately (hot reload) |
+| `volumes: /app/node_modules` | Anonymous volume that preserves the container's `node_modules` so the host mount does not override it |
+| `env_file: ./backend/.env` | Loads all variables from `backend/.env` into the container's environment |
+| `command: npm run dev -- --host` | Overrides the frontend CMD to bind Vite to `0.0.0.0` so the dev server is accessible on the host |
+
+### Step-by-Step: Run the Full Stack with Docker
+
+**1. Create your environment files**
+
+Create `backend/.env`:
+
+```env
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+JWT_SECRET=your-jwt-secret
+
+REDIS_USERNAME=default
+REDIS_PASSWORD=your-redis-password
+REDIS_HOST=your-redis-host
+REDIS_PORT=6379
+
+RESEND_API_KEY=your-resend-api-key
+```
+
+Create `frontend/.env` (if needed for Firebase config):
+
+```env
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_APP_ID=
+```
+
+**2. Build and start both services**
+
+Run this from the project root (the directory that contains `docker-compose.yml`):
+
+```bash
+docker compose up --build
+```
+
+- `--build` forces Docker to rebuild images. Omit it on subsequent runs if nothing has changed.
+- Docker will pull the base image, install dependencies, and start both containers.
+
+**3. Access the app**
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:3000 |
+
+**4. Stop the containers**
+
+```bash
+docker compose down
+```
+
+This stops and removes the containers but keeps the built images cached.
+
+### Useful Docker Commands
+
+```bash
+# Start in detached (background) mode
+docker compose up -d --build
+
+# View logs from both services
+docker compose logs -f
+
+# View logs from only the backend
+docker compose logs -f backend
+
+# Rebuild only the backend image
+docker compose build backend
+
+# Stop and remove containers and anonymous volumes
+docker compose down -v
+
+# Open a shell inside the running backend container
+docker compose exec backend sh
+```
+
+### Common Docker Issues
+
+#### Port already in use
+
+```txt
+Error: address already in use 0.0.0.0:3000
+```
+
+Another process is using port 3000 or 5173. Stop that process or change the host port in `docker-compose.yml`:
+
+```yaml
+ports:
+  - "3001:3000"   # maps host 3001 -> container 3000
+```
+
+#### `node_modules` conflicts
+
+If you see module-not-found errors after switching between running locally and Docker, it's usually a `node_modules` mismatch. Remove the anonymous volume and rebuild:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+#### Cannot connect to Redis or PostgreSQL
+
+Make sure your `backend/.env` uses a host that is reachable from inside the Docker container. `localhost` inside the container refers to the container itself, not your host machine. Use:
+
+- The actual service hostname (e.g. Redis Cloud hostname).
+- `host.docker.internal` if the service is running on your Mac host:
+
+```env
+REDIS_HOST=host.docker.internal
+```
+
+---
+
 ## Build Commands
 
 Backend type check:
